@@ -1,3 +1,3 @@
-Adafruit CircuitPython 9.0.5 on 2024-05-22; Teensy 4.1 with IMXRT1062DVJ6A
+Adafruit CircuitPython 9.1.0 on 2024-07-10; Teensy 4.1 with IMXRT1062DVJ6A
 Board ID:teensy41
 UID:E886755DD76108364700015002004200

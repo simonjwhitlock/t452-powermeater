@@ -6,12 +6,28 @@ import board
 from analogio import AnalogIn
 import microcontroller
 import ulab.numpy as np
+import digitalio
+import os
+import busio
+import storage
+import adafruit_sdcard
+import bitbangio
 
 '''
-Set processor core clock frequency
-For Teensy 4.1 default is 600000000
+define and mount the micro SD card to /sd, ensure that the card is preformatted with a fat file system
 '''
-microcontroller.cpu.frequency = 600000000
+spi = bitbangio.SPI(board.CLK, board.CMD, board.DAT0)
+cs = digitalio.DigitalInOut(board.DAT3)
+sdcard = adafruit_sdcard.SDCard(spi, cs)
+vfs = storage.VfsFat(sdcard)
+storage.mount(vfs, "/sd")
+
+'''
+create CSV file with headers on card at /sd/readings.csv
+'''
+csv_colheads = "S_one,P_one,RP_one,PF_one,Vrms_one,Arms_one,S_two,P_two,RP_two,PF_two,vrms_two,Arms_two,S_sum,P_sum"
+with open("/sd/readings.csv", "w") as sdc:
+    sdc.write("{}\n".format(csv_colheads))
 
 '''
 variable settings:
@@ -79,7 +95,7 @@ PF - power Factor
 Vrms - RMS voltage value
 Arms - RMS current value
 '''
-def Analyse(volt, amp, v_mult, a_mult):
+def Analyse(volt, amp, v_mult, a_mult,ADCmid):
     '''convert raw values to volts and amps, apply multipyer to find mains values.'''
     volt = [(((x - ADCmid)*3.3)/fulrange)*v_mult for x in volt]
     amp = [(((x - ADCmid)*3.3)/fulrange)*a_mult for x in amp]
@@ -137,14 +153,42 @@ def Analyse(volt, amp, v_mult, a_mult):
     
     '''return calculated values'''
     return(apparent_p,active_p,reactive_p,power_f,vrms,arms)
+
+def read_analise():
+    #read values
+    ADCmid = inmid.value
+    volt_one,amp_one = Read_one()
+    volt_two,amp_two = Read_two()
+    #analise values and calulate summed power values
+    S_one,P_one,RP_one,PF_one,Vrms_one,Arms_one = Analyse(volt_one,amp_one,v_one_mult,a_one_mult,ADCmid)
+    S_two,P_two,RP_two,PF_two,Vrms_two,Arms_two = Analyse(volt_two,amp_two,v_two_mult,a_two_mult,ADCmid)
+    S_sum = S_one + S_two
+    P_sum = P_one + P_two
+    #write to /sd/readings.csv
+    with open("/sd/readings.csv", "a") as sdc:
+        sdc.write("{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(S_one,P_one,RP_one,PF_one,Vrms_one,Arms_one,S_two,P_two,RP_two,PF_two,Vrms_two,Arms_two,S_sum,P_sum))
+
+
+def timing(interval,timestamp,reps):
+    count = 0
+    while (count < reps):
+        timenext = timestamp + interval
+        print("time: ",timestamp," time.time(): ",time.time()," timenext: ",timenext)
+        read_analise()
+        count += 1
+        timestamp = wait_timenext(interval,timenext)
+
+        
+def wait_timenext(interval,wait_till):
+    print("interval: ",interval," wait_till: ",wait_till)
+    while time.time() < wait_till:
+        time.sleep(0.5)
+    return(time.time())
+
     
-ADCmid = inmid.value
-print(ADCmid)
-volt_one,amp_one = Read_one()
-print(volt_one)
-print(amp_one)
-volt_two,amp_two = Read_two()
-S_one,P_one,RP_one,PF_one,Vrms_one,Arms_one = Analyse(volt_one,amp_one,v_one_mult,a_one_mult)
-print(S_one,P_one,RP_one,PF_one,Vrms_one)
-S_two,P_two,RP_two,PF_two,vrms_two,Arms_two = Analyse(volt_two,amp_two,v_two_mult,a_two_mult)
-print(S_two,P_two,RP_two,PF_two)
+timestamp = time.time()
+timing(30,timestamp,3)
+
+f = open('/sd/readings.csv', 'r')
+file = f.read()
+print(file)
