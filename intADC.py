@@ -25,7 +25,7 @@ storage.mount(vfs, "/sd")
 '''
 create CSV file with headers on card at /sd/readings.csv
 '''
-csv_colheads = "S_one,P_one,RP_one,PF_one,Vrms_one,Arms_one,S_two,P_two,RP_two,PF_two,vrms_two,Arms_two,S_sum,P_sum"
+csv_colheads = "timestamp,S_one,P_one,RP_one,PF_one,Vrms_one,Arms_one,S_two,P_two,RP_two,PF_two,vrms_two,Arms_two,S_sum,P_sum"
 with open("/sd/readings.csv", "w") as sdc:
     sdc.write("{}\n".format(csv_colheads))
 
@@ -56,9 +56,9 @@ Returns 2 lists of values per supply
 '''
 def Read_one():
     timenow = time.monotonic_ns()
-    print("start time", timenow)
+    #print("start time", timenow)
     t_end = timenow + 50000000
-    print("end time", t_end)
+    #print("end time", t_end)
     volt = []
     amp = []
     
@@ -72,9 +72,9 @@ def Read_one():
 
 def Read_two():
     timenow = time.monotonic_ns()
-    print("start time", timenow)
+    #print("start time", timenow)
     t_end = timenow + 50000000
-    print("end time", t_end)
+    #print("end time", t_end)
     volt = []
     amp = []
 
@@ -154,7 +154,7 @@ def Analyse(volt, amp, v_mult, a_mult,ADCmid):
     '''return calculated values'''
     return(apparent_p,active_p,reactive_p,power_f,vrms,arms)
 
-def read_analise():
+def read_analise(timestamp,init_time):
     #read values
     ADCmid = inmid.value
     volt_one,amp_one = Read_one()
@@ -164,30 +164,36 @@ def read_analise():
     S_two,P_two,RP_two,PF_two,Vrms_two,Arms_two = Analyse(volt_two,amp_two,v_two_mult,a_two_mult,ADCmid)
     S_sum = S_one + S_two
     P_sum = P_one + P_two
+    elap_time = timestamp - init_time
     #write to /sd/readings.csv
     with open("/sd/readings.csv", "a") as sdc:
-        sdc.write("{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(S_one,P_one,RP_one,PF_one,Vrms_one,Arms_one,S_two,P_two,RP_two,PF_two,Vrms_two,Arms_two,S_sum,P_sum))
+        sdc.write("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n".format(elap_time,S_one,P_one,RP_one,PF_one,Vrms_one,Arms_one,S_two,P_two,RP_two,PF_two,Vrms_two,Arms_two,S_sum,P_sum))
 
 
 def timing(interval,timestamp,reps):
+    init_time = time.time()
     count = 0
     while (count < reps):
         timenext = timestamp + interval
-        print("time: ",timestamp," time.time(): ",time.time()," timenext: ",timenext)
-        read_analise()
+        print("time: ",timestamp," timenext: ",timenext)
+        read_analise(timestamp,init_time)
         count += 1
-        timestamp = wait_timenext(interval,timenext)
+        # break out of timing loop if repition count has been met, else wait till next repition.
+        if (count >= reps):
+            break
+        else:
+            timestamp = wait_timenext(interval,timenext)
 
         
 def wait_timenext(interval,wait_till):
-    print("interval: ",interval," wait_till: ",wait_till)
+    #print("interval: ",interval," wait_till: ",wait_till)
     while time.time() < wait_till:
         time.sleep(0.5)
     return(time.time())
 
     
 timestamp = time.time()
-timing(30,timestamp,3)
+timing(10,timestamp,3)
 
 f = open('/sd/readings.csv', 'r')
 file = f.read()
